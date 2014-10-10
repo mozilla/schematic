@@ -6,4 +6,5 @@ setup(
     url='https://github.com/mozilla/schematic',
     author_email='dev-webdev@lists.mozilla.org',
     scripts=['schematic'],
+    description='The worst schema versioning system, ever?',
 )
