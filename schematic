@@ -201,28 +201,30 @@ def find_upgrades(schema_dir):
 def run_upgrades(db, table, schema_dir, maximum=None, handlers={}, fake=False):
     current = get_version(db, table)
     all_upgrades = find_upgrades(schema_dir).items()
-    upgrades = [(version, path) for version, path in all_upgrades
-                if version > current]
-    for version, path in sorted(upgrades):
-        if maximum and version > maximum:
-            print 'Reached max version: %s' % maximum
-            break
-        start = time.time()
-        upgrade(db, table, version, path, handlers, fake)
-        print 'That took %.2f seconds' % (time.time() - start)
-        print '#' * 50, '\n'
+    upgrades = sorted([
+        (version, path) for version, path in all_upgrades if version > current]
+    )
+
+    if fake:
+        update = UPDATE % (table, upgrades[-1][0])
+        print 'Faking migrations all the way up to %s' % version
+        say(db, update)
+    else:
+        for version, path in upgrades:
+            if maximum and version > maximum:
+                print 'Reached max version: %s' % maximum
+                break
+            start = time.time()
+            upgrade(db, table, version, path, handlers)
+            print 'That took %.2f seconds' % (time.time() - start)
+            print '#' * 50, '\n'
 
 
-def upgrade(db, table, version, path, handlers, fake=False):
+def upgrade(db, table, version, path, handlers):
     extension = os.path.splitext(path)[1]
     handler = handlers.get(extension)
     update = UPDATE % (table, version)
-    if fake:
-        # We just update the version number in db, without actually
-        # running the transaction for real.
-        print 'Faking migration %s' % version
-        say(db, update)
-    elif not extension or extension == '.sql':
+    if not extension or extension == '.sql':
         sql = open(path).read()
         print 'Running SQL migration %s:\n' % version, sql
         say(db, UPGRADE % (sql, update))
