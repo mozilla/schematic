@@ -60,6 +60,7 @@ Things that might be nice: downgrades, coping with missing migrations.
 import optparse
 import os
 import re
+import six
 import sys
 import time
 from subprocess import Popen, PIPE, STDOUT
@@ -70,11 +71,11 @@ VARIABLES = ['db', 'table', 'handlers']
 OPTIONAL_VARIABLES = {'handlers': {}}
 IGNORE_FILES = ['.pyc']
 
-CREATE  = 'CREATE TABLE %s (version INTEGER NOT NULL);'
-COUNT   = 'SELECT COUNT(version) FROM %s;'
-SELECT  = 'SELECT version FROM %s;'
-INSERT  = 'INSERT INTO %s (version) VALUES (%s);'
-UPDATE  = 'UPDATE %s SET version = %s;'
+CREATE = 'CREATE TABLE %s (version INTEGER NOT NULL);'
+COUNT = 'SELECT COUNT(version) FROM %s;'
+SELECT = 'SELECT version FROM %s;'
+INSERT = 'INSERT INTO %s (version) VALUES (%s);'
+UPDATE = 'UPDATE %s SET version = %s;'
 UPGRADE = 'BEGIN;\n%s\n%s\nCOMMIT;'
 
 
@@ -125,10 +126,10 @@ def get_settings(schema_dir):
 
     try:
         import schematic_settings as settings
-    except ImportError, e:
+    except ImportError:
         try:
             import settings
-        except ImportError, e:
+        except ImportError:
             raise MissingSettings
 
     for k in VARIABLES:
@@ -145,7 +146,7 @@ def say(db, command):
     """Try talking to the database, bail if there's anything on stderr
     or a bad returncode."""
     p = Popen(db, stdin=PIPE, stdout=PIPE, stderr=PIPE, shell=True)
-    stdout, stderr = p.communicate(command)
+    stdout, stderr = p.communicate(six.binary_type(command, 'utf-8'))
 
     if stderr or p.returncode != 0:
         raise DbError(command, stdout, stderr, p.returncode)
@@ -181,9 +182,9 @@ def table_check(db, table):
 
 
 def find_upgrades(schema_dir):
-    fullpath = lambda p: os.path.join(schema_dir, p)
-    files = filter(os.path.isfile,
-                   map(fullpath, os.listdir(schema_dir)))
+    files = filter(
+        os.path.isfile,
+        map(lambda p: os.path.join(schema_dir, p), os.listdir(schema_dir)))
 
     upgrades = {}
     for f in files:
@@ -206,18 +207,19 @@ def run_upgrades(db, table, schema_dir, maximum=None, handlers={}, fake=False):
     )
 
     if fake:
-        update = UPDATE % (table, upgrades[-1][0])
-        print 'Faking migrations all the way up to %s' % version
+        version = upgrades[-1][0]
+        update = UPDATE % (table, version)
+        print('Faking migrations all the way up to %s' % version)
         say(db, update)
     else:
         for version, path in upgrades:
             if maximum and version > maximum:
-                print 'Reached max version: %s' % maximum
+                print('Reached max version: %s' % maximum)
                 break
             start = time.time()
             upgrade(db, table, version, path, handlers)
-            print 'That took %.2f seconds' % (time.time() - start)
-            print '#' * 50, '\n'
+            print('That took %.2f seconds' % (time.time() - start))
+            print('#' * 50, '\n')
 
 
 def upgrade(db, table, version, path, handlers):
@@ -226,12 +228,12 @@ def upgrade(db, table, version, path, handlers):
     update = UPDATE % (table, version)
     if not extension or extension == '.sql':
         sql = open(path).read()
-        print 'Running SQL migration %s:\n' % version, sql
+        print('Running SQL migration %s:\n' % version, sql)
         say(db, UPGRADE % (sql, update))
     elif handler:
         cmd = handler % (os.path.splitext(os.path.basename(path))[0])
-        print 'Running %s migation %s:\n' % (extension, version), cmd
-        print ext(cmd)
+        print('Running %s migation %s:\n' % (extension, version), cmd)
+        print(ext(cmd))
         say(db, update)
     else:
         raise NotImplementedError("Don't know how to migrate: %s" % path)
@@ -247,7 +249,7 @@ def main(schema_dir, maximum=None, fake=False):
 
     table_check(db, table)
     if maximum:
-        print 'Up to max: %s' % maximum
+        print('Up to max: %s' % maximum)
     run_upgrades(db, table, schema_dir, maximum,
                  getattr(settings, 'handlers',
                          OPTIONAL_VARIABLES['handlers']), fake)
@@ -261,7 +263,7 @@ def update(schema_dir, version):
 
 def version(schema_dir):
     settings = get_settings(schema_dir)
-    print get_version(settings.db, settings.table)
+    print(get_version(settings.db, settings.table))
 
 
 if __name__ == '__main__':
@@ -301,6 +303,6 @@ if __name__ == '__main__':
             version(path)
         else:
             main(path, options.max, options.fake)
-    except SchematicError, e:
-        print 'Error:', e
+    except SchematicError as e:
+        print('Error:', e)
         sys.exit(1)
