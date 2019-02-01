@@ -1,3 +1,5 @@
+[![No Maintenance Intended](http://unmaintained.tech/badge.svg)](http://unmaintained.tech/)
+
 The worst schema versioning system, ever?
 
 Usage: schematic.py path/to/schema_files
